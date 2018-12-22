@@ -1,0 +1,415 @@
+#include <iostream>
+#include <cstdio>
+#include <cmath>
+#include <vector>
+#include <string>
+#include <cstring>
+#include <map>
+ 
+using namespace std;
+ 
+class command{
+public:
+    string name, explanation;
+    command(string a, string b) {
+        name = a;
+        explanation = b;
+    }
+};
+ 
+bool gameover = false;
+int abdamage = 2, abprob = 3, abhealth = 10, abxpos = 100, abypos = 200;
+int bossh = 100, bossd = 30;
+double CLOSE_ENOUGH = 0.1;
+double score_multiplier = 1.5;
+int lifei = 25;
+string mode;
+vector <command> commands;
+vector <command> upgrades;
+ 
+map <string , double > stats;
+ 
+double rad(double deg) {
+    return deg * acos(-1.0) / 180;
+}
+ 
+double howfar(double phi, int dx, int dy) {
+    double theta = rad(phi);
+    if(dx == 0 && theta == acos(-1.0)/2) return 0;
+    double t = dx/stats["Velocity"]/cos(theta);
+    return stats["Velocity"]*t*sin(theta) - 4.9*t*t-dy+stats["Height"];
+}
+ 
+bool isposs(int dx, int dy){
+    int temp = 180;
+    for(int i = -90; i <= 90; i++){
+        if (howfar(i, dx, dy) > 0) {
+            temp = i;
+            break;
+        }
+    }
+    if(temp == 180) return false;
+    for(double i = temp-1; i <= temp; i+=CLOSE_ENOUGH){
+        if (abs(howfar(i, dx, dy)) < CLOSE_ENOUGH) return true;
+    }
+    return false;
+}
+ 
+void fight() {
+    srand(time(NULL));
+    int dx, dy, hit, testx = 0, testy = stats["Velocity"]*stats["Velocity"]/19.6 + stats["Height"];
+    vector <int> ranges;
+    while(true){
+        while(isposs(testx, testy)){
+            testy++;
+        }
+        if(testy == 0) break;
+        ranges.push_back(testy);
+        testy = 0;
+        testx++;
+    }
+    dx = rand()%testx;
+    dy = rand()%ranges[dx];
+    // to get the range
+    double angle;
+    bool dead = false;
+    printf("Arnie Barnie is %d meters away. His elevation is %d meters. Enter an angle (in degrees) to fire at: ", dx, dy);
+    cin >> angle;
+    int origh = abhealth, times = 1;
+    while (origh > 0) {
+        if(abs(howfar(angle, dx, dy)) > CLOSE_ENOUGH){
+            double far = howfar(angle, dx, dy);
+            cout << "Oh, no! ";
+            if(mode == "easy")
+            {
+                if (far > 0) {
+                    printf("You overshot by %lf meters. \n", far);
+                } else {
+                    printf("You undershot by %lf meters. \n", abs(far));
+                }
+            }
+            else if (mode == "medium"){
+                if (far > 0) {
+                    printf("You overshot. \n");
+                } else {
+                    printf("You undershot. \n");
+                }
+            }
+            else if (mode == "hard"){
+                cout << "You missed him! \n";
+            }
+        }
+        else{
+            origh -= stats["Damage"];
+            if(origh <= 0){
+                cout << "VICTORY!!!" << endl;
+                break;
+            }
+            else{
+                cout << "You hit him but he is still at" << origh << "health. \n";
+            }
+        }
+        hit = rand()%2;
+        if(hit == 0)
+        {
+            cout << "Oh no, you were hit!!\n";
+            stats["Health"]-=abdamage;
+            cout << "Your health is now " << stats["Health"] << "." << endl;
+        }
+        else cout << "He missed you!!!\n";
+        if (stats["Health"] == 0) {
+            //double phi = find_theta(dx, dy);
+            //cout << "DANG NANG IT. I DON'T BELIEVE YOU. The correct angle was " << phi << ".\n";
+            stats["Health"] = stats["Max health"];
+            dead = true;
+            stats["Lives"]--;
+            cout << "You now have " << stats["Lives"] << " lives.\n";
+            return;
+        }
+        if(times == 5){
+            times = 0;
+            dx = rand()%testx;
+            dy = rand()%ranges[dx];
+            printf("Oh no! ArnieBarnie has moved!! Now he is %d meters away, and his elevation is %d meters. Enter an angle (in degrees) to fire at: ", dx, dy);
+        }
+        else cout << "Enter an angle (in degrees) to fire at: ";
+        cin >> angle;
+        times++;
+    }
+    stats["Gold"] += sqrt(stats["Velocity"]) * 2 * stats["Gold multiplier"];
+    string trash;
+    getline(cin, trash);
+}
+ 
+void upgrade() {
+    int cost;
+    while (true) {
+        cout << "What do you want to upgrade? ";
+        string choice;
+        getline(cin, choice);
+        if (choice == "canon") {
+            cost = stats["Velocity"] * sqrt(stats["Velocity"]);
+            if (stats["Gold"] > cost) {
+                int temp = (stats["Velocity"]-5)/5;
+                stats["Velocity"] += 5;
+                stats["Gold"] -= cost;
+                int i = stats["Velocity"];
+                printf("You successfully upgraded your canon to level %d! It now fires at %d meters per second\n", temp+1, i);
+            } else {
+                printf("You do not have enough gold to upgrade your canon. You need %d gold to upgrade.\n", cost);
+            }
+            break;
+        } else if (choice == "height") {
+            cost = (stats["Height"] + 1) * sqrt(stats["Height"] + 1) * 10;
+            if (stats["Gold"] > cost) {
+                stats["Gold"] -= cost;
+                stats["Height"]+=5;
+                int i = stats["Height"];
+                printf("You successfully upgraded your canon to height to %d meters!\n", i);
+            } else {
+                printf("You do not have enough gold to upgrade your platform. You need %d gold to upgrade.\n",cost);
+            }
+            break;
+        } else if (choice == "damage") {
+            cost = (stats["Damage"]) * sqrt(stats["Damage"]);
+            if (stats["Gold"] > cost) {
+                stats["Gold"] -= cost;
+                stats["Damage"]+=5;
+                int i = stats["Damage"];
+                printf("You successfully upgraded your canon's damage to %d!\n", i);
+            } else {
+                printf("You do not have enough gold to upgrade your damage. You need %d gold to upgrade.\n",cost);
+            }
+            break;
+        } else if(choice == "health"){
+            cost = stats["Max health"]*sqrt(stats["Max health"]);
+            if (stats["Gold"] > cost) {
+                int temp = (stats["Max health"]-5)/5;
+                stats["Gold"] -= cost;
+                stats["Max health"] += 5;
+                int i = stats["Max health"];
+                printf("You successfully upgraded your canon health to level %d! Your max health is now %d.\n", temp, i);
+            } else {
+                printf("You do not have enough gold to upgrade your canon health. You need %d gold to upgrade.\n", cost);
+            }
+            break;
+        } else if (choice == "gold multiplier") {
+            int gm = stats["Gold multiplier"];
+            cost = 15 * gm + 10;
+            if (stats["Gold"] >= cost) {
+                stats["Gold"] -= cost;
+                stats["Gold multiplier"] += sqrt(gm);
+                printf("You successfully upgraded your gold multiplier to %.3lf.\n", stats["Gold multiplier"]);
+            } else {
+                printf("You do not have enough gold to upgrade your gold multiplier. You need %d gold to upgrade.\n", cost);
+            }
+            break;
+        } else if (choice == "help"){
+            for (unsigned int i = 0; i < upgrades.size(); i++) {
+                printf("%s: %s\n", upgrades[i].name.c_str(), upgrades[i].explanation.c_str());
+            }
+        } else {
+            cout << "That isn't something that you can upgrade. Please type help to find out why.\n";
+        }
+    }
+}
+ 
+int main(int argc, const char * argv[]) {
+    cout << "The goal of this game is to hit the boss, which is ArnieBarnie. You start with a canon, and you can upgrade your canon and your height with gold. " << endl;
+    cout << "Do you want to play in easy, medium, or hard mode? ";
+    getline(cin, mode);
+    while (mode != "easy" && mode != "medium" && mode != "hard") {
+        cout << "That isn't a choice. You can chose either easy, medium, or hard.\n";
+        cout << "What mode do you want to play in? ";
+        getline(cin, mode);
+    }
+    
+    commands.push_back(command("fight", "lets you fire your canonballs at a Arnie barnie. The distance will be printed out, and you will have to input the angle to fire your canonballs at. if you miss, you have to keep on inputing.\n"));
+    commands.push_back(command("boss fight", "lets you fight ArnieBarnie, the boss. He has extra health, and does more damage, and is farther away from you. \n"));
+    commands.push_back(command("upgrade", "Upgrades stuff. When you are upgrading, you can type 'help' for more details on what you can upgrade\n"));
+    commands.push_back(command("stats", "Shows all of your stats.\n"));
+    commands.push_back(command("heal", "Gives you full health. You can only heal after a battle.\n"));
+    commands.push_back(command("get a life", "Gives you another life for some amount of gold. You can find out the cost of getting a life by typing 'stats'\n"));
+    commands.push_back(command("ragequit", "Automatically quits you from the game. \n"));
+    commands.push_back(command("get some help", "Shows all of the valid commands.\n"));
+    commands.push_back(command("Lifecost", "Tells you how much a life costs.\n"));
+    
+    upgrades.push_back(command("canon", "Makes your canon fire at a higher velocity.\n"));
+    upgrades.push_back(command("damage", "Increases your damage.\n"));
+    upgrades.push_back(command("height", "Makes your canon fire from a higher height.\n"));
+    upgrades.push_back(command("health", "Increases your maximum possible health.\n"));
+    upgrades.push_back(command("gold multiplier", "Increases your profits when you defeat Arnie barnie.\n"));
+    
+    stats.insert(pair<string, double>("Gold", 0.0));
+    stats.insert(pair<string, double>("Velocity", 10.0));
+    stats.insert(pair<string, double>("Damage", 10.0));
+    stats.insert(pair<string, double>("Height", 0.0));
+    stats.insert(pair<string, double>("Health", 10.0));
+    stats.insert(pair<string, double>("Max health", 10.0));
+    stats.insert(pair<string, double>("Lives", 7.0));
+    stats.insert(pair<string, double>("Life cost", 25.0));
+    stats.insert(pair<string, double>("Gold multiplier", 1.5));
+    bool killboss = false;
+    if (mode == "medium") {
+        CLOSE_ENOUGH = 0.01;
+        score_multiplier = 1.0;
+        stats["Gold multiplier"] = 1.0;
+        stats["Lives"] = 5.0;
+        stats["Life cost"] = 75.0;
+        abxpos = 200;
+        abypos = 400;
+        bossd = 45;
+        bossh = 150;
+        abdamage = 3;
+        abprob = 3;
+        abhealth = 15;
+        lifei = 50;
+    } else if (mode == "hard") {
+        CLOSE_ENOUGH = 0.001;
+        score_multiplier = 0.8;
+        stats["Gold multiplier"] = 0.8;
+        stats["Lives"] = 5.0;
+        stats["Life cost"] = 75.0;
+        stats["Velocity"] = 15.0;
+        abxpos = 400;
+        abypos = 800;
+        bossd = 60;
+        bossh = 200;
+        abprob = 2;
+        abdamage = 5;
+        abhealth = 20;
+        lifei = 75;
+    }
+    while (gameover == false) {
+        srand(time(NULL));
+        string command;
+        cout << "What do you want to do? ";
+        getline(cin, command);
+        if (command == "fight") {
+            fight();
+        } else if (command == "upgrade") {
+            upgrade();
+        } else if (command == "stats" || command == "stat") {
+            for (map <string, double>::iterator it = stats.begin(); it != stats.end(); it++) {
+                int temp = it->second;
+                if (it->first.c_str() == "Gold multiplier") {
+                    printf("%s: %lf\n", it->first.c_str(), it->second);
+                }
+                else printf("%s: %d\n", it->first.c_str(), temp);
+            }
+        } else if (command == "get some help" || command == "help") {
+            for (unsigned int i = 0; i < commands.size(); i++) {
+                printf("%s: %s\n", commands[i].name.c_str(), commands[i].explanation.c_str());
+            }
+        } else if (command == "heal"){
+            stats["Health"] = stats["Max health"];
+            if(stats["Gold"] <= 10) stats["Gold"] = 0;
+            else stats["Gold"]-=10;
+            cout << "You have successfully healed. \n";
+        }else if(command == "get a life"){
+            if(stats["Gold"] > stats["Life cost"]){
+                stats["Lives"]++;
+                stats["Gold"] -= stats["Life cost"];
+                stats["Life cost"] += lifei;;
+                cout << "You have successfully gotten another life!" << endl;
+            }
+            else {
+                cout << "You need "<< stats["Life cost"] << " gold to get another life" << endl;
+            }
+        }else if(command == "boss fight"){
+            double angle;
+            int hit;
+            bool dead = false;
+            printf("Arnie Barnie is %d meters away. His elevation is %d meters. Enter an angle (in degrees) to fire at: ", abxpos, abypos);
+            cin >> angle;
+            int origh = bossh, times = 1;
+            while (origh > 0) {
+                if(abs(howfar(angle, abxpos, abypos)) > CLOSE_ENOUGH){
+                    double far = howfar(angle, abxpos, abypos);
+                    cout << "Oh, no! ";
+                    if(mode == "easy")
+                    {
+                        if (far > 0) {
+                            printf("You overshot by %lf meters. \n", far);
+                        } else {
+                            printf("You undershot by %lf meters. \n", abs(far));
+                        }
+                    }
+                    else if (mode == "medium"){
+                        if (far > 0) {
+                            printf("You overshot. \n");
+                        } else {
+                            printf("You undershot. \n");
+                        }
+                    }
+                    else if (mode == "hard"){
+                        cout << "You missed him! \n";
+                    }
+                }
+                else{
+                    origh -= stats["Damage"];
+                    if(origh <= 0){
+                        killboss = true;
+                        break;
+                    }
+                    else{
+                        cout << "You hit him but he is still at" << origh << "health. \n";
+                    }
+                }
+                hit = rand()%2;
+                if(hit == 0)
+                {
+                    cout << "Oh no, you were hit!!\n";
+                    stats["Health"]-=bossd;
+                    cout << "Your health is now " << stats["Health"] << "." << endl;
+                }
+                else cout << "He missed you!!!\n";
+                if (stats["Health"] == 0) {
+                    stats["Health"] = stats["Max health"];
+                    dead = true;
+                    stats["Lives"]--;
+                    cout << "You now have " << stats["Lives"] << " lives.\n";
+                    break;
+                }
+                else cout << "Enter an angle (in degrees) to fire at: ";
+                cin >> angle;
+                times++;
+            }
+            if(origh <= 0) {
+                cout << "You WIN!!!!!" << endl;
+                break;
+            }
+            string trash;
+            getline(cin, trash);
+        }else if(command == "ragequit"){
+            gameover = true;
+            cout << "GAME OVER!!!" << endl;
+            printf("Your final score was %.0lf. \n", (stats["Height"]+stats["Velocity"]) * score_multiplier);
+        } else {
+            cout << "You entered an invalid command. Please type 'help' to find out why.\n";
+        }
+        if(stats["Lives"] == 0)
+        {
+            cout << "DANG NANG IT! You lost.\nGAME OVER!!!" << endl;
+            printf("Your final score was %.0lf. /n", (stats["Height"]+stats["Velocity"]) * score_multiplier);
+            gameover = true;
+        }
+        if ((stats["Height"] + stats["Velocity"]) > abhealth * 3) {
+            abhealth += 10;
+            abdamage ++;
+            if (mode == "hard") {
+                abdamage += 2;
+            }
+            printf("Oh no! Arnie barnie has grown more powerful. His health is now %d, and he does %d damage.\n", abhealth, abdamage);
+            
+        }
+    }
+    if(killboss == true) cout << "You beat the game!!!!!" << endl;
+    return 69;
+}
+//we have reached 400-line benchmark
+ 
+ 
+ 
+ 
+
